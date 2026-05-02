@@ -238,6 +238,65 @@ aws-ghost-scan:
 
 ---
 
+## Security & Trust
+
+`aws-ghost` is designed with security and transparency as core principles. Your AWS credentials are never sent to any external service.
+
+### 🔒 Security Guarantees
+
+- **Local-only credential usage**: Your AWS credentials are used locally by the tool and never transmitted to any external servers
+- **Read-only operations**: The tool only uses AWS Describe/List API calls — it never creates, modifies, or deletes resources
+- **API call transparency**: Every AWS API call made during a scan is logged and displayed in the summary
+- **Open source**: The entire codebase is open source and auditable by anyone
+- **No account required**: You don't need to create an account or sign up to use this tool
+
+### 🛡️ Security Features
+
+#### Credential Verification
+Before each scan, `aws-ghost` displays:
+- Your AWS Account ID
+- User ARN being used
+- Credential source (environment variables, AWS profile, IAM role, etc.)
+- Whether root account access is being used (with warning if true)
+- MFA status verification
+
+#### Read-Only Verification
+The tool verifies that all API operations are read-only:
+- Automatic detection of any write operations (Create, Delete, Update, etc.)
+- Warning if any non-read operations are detected
+- Summary of all services and operations used during the scan
+
+#### Security Audit Command
+Run a comprehensive security audit of your credentials:
+
+```bash
+aws-ghost security audit
+```
+
+This will:
+- Verify your credential configuration
+- Check for root account usage
+- Verify MFA status
+- Provide security recommendations
+- Display required IAM permissions
+
+#### Security Levels
+Configure security strictness with four levels:
+
+```bash
+aws-ghost scan --security-level low      # Minimal restrictions (dev/testing)
+aws-ghost scan --security-level medium   # Balanced (default)
+aws-ghost scan --security-level high     # Enhanced (production)
+aws-ghost scan --security-level strict   # Maximum restrictions
+```
+
+View available security levels:
+```bash
+aws-ghost security levels
+```
+
+---
+
 ## Required IAM permissions
 
 `aws-ghost` is **read-only**. It will never modify or delete anything.

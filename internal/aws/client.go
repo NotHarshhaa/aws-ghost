@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -17,22 +18,26 @@ import (
 
 // Client wraps AWS SDK clients
 type Client struct {
-	Config         aws.Config
-	EC2            *ec2.Client
-	ELB            *elasticloadbalancing.Client
-	ELBv2          *elasticloadbalancingv2.Client
-	RDS            *rds.Client
-	ECR            *ecr.Client
-	Lambda         *lambda.Client
-	CloudWatch     *cloudwatch.Client
-	CloudWatchLogs *cloudwatchlogs.Client
-	AccountID      string
+	Config           aws.Config
+	EC2              *ec2.Client
+	ELB              *elasticloadbalancing.Client
+	ELBv2            *elasticloadbalancingv2.Client
+	RDS              *rds.Client
+	ECR              *ecr.Client
+	Lambda           *lambda.Client
+	CloudWatch       *cloudwatch.Client
+	CloudWatchLogs   *cloudwatchlogs.Client
+	AccountID        string
+	CredentialSource string
 }
 
 // NewClient creates a new AWS client with the given profile and region
 func NewClient(profile, region string) (*Client, error) {
 	var cfg aws.Config
 	var err error
+
+	// Detect credential source
+	credentialSource := detectCredentialSource(profile)
 
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
@@ -55,17 +60,40 @@ func NewClient(profile, region string) (*Client, error) {
 	}
 
 	return &Client{
-		Config:         cfg,
-		EC2:            ec2.NewFromConfig(cfg),
-		ELB:            elasticloadbalancing.NewFromConfig(cfg),
-		ELBv2:          elasticloadbalancingv2.NewFromConfig(cfg),
-		RDS:            rds.NewFromConfig(cfg),
-		ECR:            ecr.NewFromConfig(cfg),
-		Lambda:         lambda.NewFromConfig(cfg),
-		CloudWatch:     cloudwatch.NewFromConfig(cfg),
-		CloudWatchLogs: cloudwatchlogs.NewFromConfig(cfg),
-		AccountID:      accountID,
+		Config:           cfg,
+		EC2:              ec2.NewFromConfig(cfg),
+		ELB:              elasticloadbalancing.NewFromConfig(cfg),
+		ELBv2:            elasticloadbalancingv2.NewFromConfig(cfg),
+		RDS:              rds.NewFromConfig(cfg),
+		ECR:              ecr.NewFromConfig(cfg),
+		Lambda:           lambda.NewFromConfig(cfg),
+		CloudWatch:       cloudwatch.NewFromConfig(cfg),
+		CloudWatchLogs:   cloudwatchlogs.NewFromConfig(cfg),
+		AccountID:        accountID,
+		CredentialSource: credentialSource,
 	}, nil
+}
+
+// detectCredentialSource determines where AWS credentials are coming from
+func detectCredentialSource(profile string) string {
+	// Check environment variables
+	if os.Getenv("AWS_ACCESS_KEY_ID") != "" || os.Getenv("AWS_SECRET_ACCESS_KEY") != "" {
+		return "environment_variables"
+	}
+	if os.Getenv("AWS_SESSION_TOKEN") != "" {
+		return "session_token"
+	}
+	if os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE") != "" {
+		return "web_identity"
+	}
+
+	// If profile is specified, it's from AWS credentials file
+	if profile != "" {
+		return "aws_profile:" + profile
+	}
+
+	// Default to default profile or IAM role
+	return "default_credential_chain"
 }
 
 // NewClientForRegion creates a new AWS client for a specific region

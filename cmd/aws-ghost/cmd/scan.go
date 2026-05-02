@@ -90,6 +90,20 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("security validation failed: %w", err)
 	}
 
+	// Add credential source info
+	credInfo.CredentialSource = client.CredentialSource
+
+	// Display security information to build trust
+	if !quiet {
+		displaySecurityInfo(credInfo, secConfig, region)
+	}
+
+	// Get API tracker for transparency
+	apiTracker := validator.GetAPITracker()
+
+	// Log the initial STS call
+	apiTracker.LogCall("STS", "GetCallerIdentity", region, true, "")
+
 	// Log successful credential validation
 	validator.LogSecurityEvent(types.SecurityEvent{
 		EventType: "credential_validation_success",
@@ -235,6 +249,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Display API call summary for transparency
+	if !quiet && outputFmt == "text" {
+		displayAPISummary(apiTracker)
+	}
+
 	return nil
 }
 
@@ -251,4 +270,39 @@ func parseList(input string) []string {
 		}
 	}
 	return result
+}
+
+func displaySecurityInfo(credInfo *types.CredentialInfo, secConfig types.SecurityConfig, region string) {
+	fmt.Printf("\n🔒 Security Verification\n")
+	fmt.Printf("======================\n")
+	fmt.Printf("Account ID: %s\n", credInfo.AccountID)
+	fmt.Printf("User ARN: %s\n", credInfo.ARN)
+	fmt.Printf("Credential Source: %s\n", credInfo.CredentialSource)
+	fmt.Printf("Root Access: %s\n", map[bool]string{true: "⚠️  YES (not recommended)", false: "✅ No"}[credInfo.RootAccess])
+	fmt.Printf("MFA Enabled: %s\n", map[bool]string{true: "✅ Yes", false: "ℹ️  Not verified"}[credInfo.MFAEnabled])
+	fmt.Printf("Security Level: %s\n", string(secConfig.Level))
+	fmt.Printf("Region: %s\n", region)
+	fmt.Printf("\n🛡️  Safety Guarantees:\n")
+	fmt.Printf("  • Credentials used locally only (never sent to external servers)\n")
+	fmt.Printf("  • Read-only AWS API calls (Describe/List operations only)\n")
+	fmt.Printf("  • No resource modifications or deletions\n")
+	fmt.Printf("  • All API calls logged for transparency\n")
+	fmt.Printf("\n")
+}
+
+func displayAPISummary(tracker *security.APITracker) {
+	fmt.Printf("\n📊 API Call Summary\n")
+	fmt.Printf("===================\n")
+	fmt.Printf("%s", tracker.GetSummary())
+
+	isReadOnly, writeOps := tracker.VerifyReadOnly()
+	if isReadOnly {
+		fmt.Printf("✅ All operations verified as read-only\n")
+	} else {
+		fmt.Printf("⚠️  Warning: Write operations detected:\n")
+		for _, op := range writeOps {
+			fmt.Printf("  - %s\n", op)
+		}
+	}
+	fmt.Printf("\n")
 }

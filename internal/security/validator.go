@@ -14,15 +14,17 @@ import (
 
 // Validator handles security validations
 type Validator struct {
-	config types.SecurityConfig
-	sts    *sts.Client
+	config     types.SecurityConfig
+	sts        *sts.Client
+	apiTracker *APITracker
 }
 
 // NewValidator creates a new security validator
 func NewValidator(cfg types.SecurityConfig, awsCfg aws.Config) *Validator {
 	return &Validator{
-		config: cfg,
-		sts:    sts.NewFromConfig(awsCfg),
+		config:     cfg,
+		sts:        sts.NewFromConfig(awsCfg),
+		apiTracker: NewAPITracker(),
 	}
 }
 
@@ -45,6 +47,9 @@ func (v *Validator) ValidateCredentials(ctx context.Context) (*types.CredentialI
 	if identity.UserId != nil {
 		info.UserID = *identity.UserId
 		info.RootAccess = strings.HasPrefix(*identity.UserId, "AROA") // Root user ARN starts with AROA
+	}
+	if identity.Arn != nil {
+		info.ARN = *identity.Arn
 	}
 
 	// Check MFA status
@@ -159,4 +164,9 @@ func (v *Validator) ValidateScanConfig(scanConfig types.ScanConfig) error {
 	}
 
 	return nil
+}
+
+// GetAPITracker returns the API tracker
+func (v *Validator) GetAPITracker() *APITracker {
+	return v.apiTracker
 }
