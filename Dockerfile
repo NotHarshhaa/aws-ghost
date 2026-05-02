@@ -18,13 +18,16 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Copy source code
 COPY . .
 
+# Debug: check what's in the directory
+RUN find /app -name "*.go" -type f
+
 # Build the binary with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a -installsuffix cgo \
-    -o aws-ghost ./cmd/aws-ghost/cmd
+    -o aws-ghost ./cmd/aws-ghost
 
 # Final stage - minimal scratch image
 FROM scratch
