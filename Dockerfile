@@ -18,6 +18,16 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Copy source code
 COPY . .
 
+# Debug: check what's actually in the build context
+RUN echo "=== Build context contents ==="
+RUN ls -la /app
+RUN echo "=== CMD directory contents ==="
+RUN ls -la /app/cmd || echo "cmd directory not found"
+RUN echo "=== Full directory tree ==="
+RUN find /app -type d
+RUN echo "=== Go files ==="
+RUN find /app -name "*.go" -type f || echo "No Go files found"
+
 # Build the binary with optimizations
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
