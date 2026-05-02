@@ -16,7 +16,7 @@ GOMOD=$(GOCMD) mod
 build:
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/aws-ghost
+	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/aws-ghost/cmd
 
 clean:
 	@echo "Cleaning..."
@@ -29,11 +29,11 @@ test:
 
 install:
 	@echo "Installing $(BINARY_NAME)..."
-	$(GOBUILD) -o $(GOPATH)/bin/$(BINARY_NAME) ./cmd/aws-ghost
+	$(GOBUILD) -o $(GOPATH)/bin/$(BINARY_NAME) ./cmd/aws-ghost/cmd
 
 run:
 	@echo "Running $(BINARY_NAME)..."
-	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/aws-ghost
+	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/aws-ghost/cmd
 	./$(BUILD_DIR)/$(BINARY_NAME) scan
 
 deps:
@@ -53,7 +53,7 @@ vet:
 build-all:
 	@echo "Building for multiple platforms..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/aws-ghost
-	GOOS=darwin GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/aws-ghost
-	GOOS=darwin GOARCH=arm64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/aws-ghost
-	GOOS=windows GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/aws-ghost
+	GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/aws-ghost/cmd
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/aws-ghost/cmd
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/aws-ghost/cmd
+	GOOS=windows GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/aws-ghost/cmd

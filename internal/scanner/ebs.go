@@ -35,6 +35,11 @@ func (s *EBSScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 	}
 
 	for _, vol := range resp.Volumes {
+		// Skip if essential fields are nil
+		if vol.VolumeId == nil || vol.State == "" {
+			continue
+		}
+
 		// Check if volume is unattached
 		if len(vol.Attachments) == 0 && vol.State != "deleting" && vol.State != "deleted" {
 			idleDays := s.calculateIdleDays(vol.CreateTime)
@@ -43,6 +48,12 @@ func (s *EBSScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 			if vol.Size != nil {
 				size = *vol.Size
 			}
+
+			var createTime time.Time
+			if vol.CreateTime != nil {
+				createTime = *vol.CreateTime
+			}
+
 			resource := types.Resource{
 				ID:          *vol.VolumeId,
 				Type:        "ebs",
@@ -55,9 +66,9 @@ func (s *EBSScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 					"size":       fmt.Sprintf("%d GB", size),
 					"type":       string(vol.VolumeType),
 					"encrypted":  fmt.Sprintf("%t", vol.Encrypted),
-					"created_at": vol.CreateTime.Format(time.RFC3339),
+					"created_at": createTime.Format(time.RFC3339),
 				},
-				LastActive: *vol.CreateTime,
+				LastActive: createTime,
 			}
 
 			resources = append(resources, resource)
@@ -83,6 +94,9 @@ func (s *EBSScanner) calculateIdleDays(createTime *time.Time) int {
 }
 
 func getVolumeName(tags []ec2types.Tag) string {
+	if tags == nil {
+		return ""
+	}
 	for _, tag := range tags {
 		if tag.Key != nil && *tag.Key == "Name" {
 			if tag.Value != nil {

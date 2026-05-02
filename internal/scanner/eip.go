@@ -34,21 +34,27 @@ func (s *EIPScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 	}
 
 	for _, addr := range resp.Addresses {
+		// Skip if essential fields are nil
+		if addr.AllocationId == nil || addr.PublicIp == nil {
+			continue
+		}
+
 		// Check if IP is not associated with a running instance
 		if addr.AssociationId == nil || addr.InstanceId == nil {
 			// Use a default idle time since AllocationTime is not available
 			idleDays := 30
 
+			publicIP := *addr.PublicIp
 			resource := types.Resource{
 				ID:          *addr.AllocationId,
 				Type:        "eip",
 				Region:      s.client.Config.Region,
-				Name:        *addr.PublicIp,
+				Name:        publicIP,
 				State:       "unattached",
 				IdleDays:    idleDays,
 				MonthlyCost: s.calc.ElasticIPCost(),
 				Metadata: map[string]string{
-					"public_ip": *addr.PublicIp,
+					"public_ip": publicIP,
 					"domain":    string(addr.Domain),
 				},
 				LastActive: time.Now().AddDate(0, 0, -idleDays),
