@@ -32,6 +32,8 @@ func Execute() error {
 func init() {
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(reportCmd)
+	rootCmd.AddCommand(fixCmd)
+	rootCmd.AddCommand(trendsCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(securityCmd)
 }

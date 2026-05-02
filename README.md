@@ -112,7 +112,7 @@ aws-ghost scan --all-regions
 
 ### Scan specific resource types only
 ```bash
-aws-ghost scan --only ebs,eip,snapshots
+aws-ghost scan --only ebs,eip,s3,cloudfront
 ```
 
 ### Multi-account via AWS profiles
@@ -148,6 +148,57 @@ aws-ghost scan --min-cost 10
 aws-ghost scan --idle-days 30
 ```
 
+### Tag-based filtering
+```bash
+# Skip resources with protection tags (keep=true, env=prod)
+aws-ghost scan --skip-protected
+
+# Only scan resources with specific tag value
+aws-ghost scan --tag-filter env=dev
+
+# Group results by tag
+aws-ghost scan --group-by owner
+```
+
+### Automated cleanup (NEW!)
+```bash
+# Preview what would be cleaned up (dry run)
+aws-ghost fix --dry-run
+
+# Clean up resources under $10/month with confirmation
+aws-ghost fix --min-cost 10
+
+# Auto-confirm cleanup for specific resource types
+aws-ghost fix --only ebs,eip --auto-confirm
+
+# Force cleanup (skip all confirmations - DANGEROUS)
+aws-ghost fix --force --min-cost 5
+```
+
+### Cost trends analysis (NEW!)
+```bash
+# Show trends for the last 30 days
+aws-ghost trends --days-back 30
+
+# Export trends to JSON
+aws-ghost trends --output trends.json
+
+# Show trends with markdown output
+aws-ghost trends --output markdown
+```
+
+### Webhook notifications (NEW!)
+```bash
+# Send scan results to Slack
+aws-ghost scan --slack-webhook https://hooks.slack.com/... --notify
+
+# Send trend alerts to Teams
+aws-ghost trends --teams-webhook https://outlook.office.com/... --notify
+
+# Test webhook configuration
+aws-ghost webhooks --test --slack-webhook https://hooks.slack.com/...
+```
+
 ---
 
 ## What it scans
@@ -168,6 +219,10 @@ aws-ghost scan --idle-days 30
 | Idle EC2 Instances | CPU < 5% avg over 14 days | full instance cost |
 | Stopped EC2 Instances | Stopped for 14+ days (EBS still billing) | EBS cost |
 | Old AMIs | Not used by any running instance, 90+ days old | snapshot cost |
+| **S3 Buckets** | Empty or contains old objects without lifecycle policy | $/GB/month |
+| **CloudFront Distributions** | Disabled or zero traffic for 30+ days | $0.50/mo + data transfer |
+| **Auto Scaling Groups** | Empty, no instances, or underutilized (<10% CPU) | Instance costs |
+| **ECS/EKS Clusters** | Empty clusters or idle services/node groups | Control plane costs |
 
 ---
 
@@ -327,14 +382,51 @@ aws-ghost security levels
 
 ---
 
+## 🆕 What's New in v2.0
+
+### Automated Cleanup
+- **Safe resource deletion** with dry-run mode and confirmations
+- **Interactive cleanup** with resource-by-resource approval
+- **Tag protection** automatically skips resources with `keep=true`, `env=prod`
+- **Force mode** for automated cleanup (with safety checks)
+
+### Cost Trends & Analytics
+- **Historical comparison** track waste changes over time
+- **Trend analysis** identify increasing/decreasing waste patterns
+- **Savings tracking** measure impact of cleanup efforts
+- **Multi-format export** JSON, Markdown, and text reports
+
+### Webhook Integrations
+- **Slack notifications** rich messages with waste breakdown
+- **Teams integration** formatted cards for Microsoft Teams
+- **Discord support** embed messages with detailed metrics
+- **Trend alerts** automatic notifications for significant changes
+
+### Enhanced Resource Coverage
+- **S3 buckets** empty storage and old objects without lifecycle policies
+- **CloudFront distributions** disabled or zero-traffic distributions
+- **Auto Scaling Groups** empty, underutilized, or misconfigured groups
+- **Container services** ECS/EKS clusters and services with no running tasks
+
+### Tag-Based Filtering
+- **Protection tags** skip resources with `keep=true`, `critical=true`
+- **Environment filtering** automatic exclusion of `env=prod` resources
+- **Resource grouping** organize results by owner, project, or cost center
+- **Custom filtering** include/exclude by any tag combination
+
+---
+
 ## Roadmap
 
-- [ ] `--fix` flag — interactive prompt to delete confirmed ghosts one by one
-- [ ] Slack / Teams webhook: post weekly ghost report automatically
-- [ ] Tag-based filtering: skip resources tagged `keep=true` or `env=prod`
+- [x] `--fix` command — interactive prompt to delete confirmed ghosts one by one
+- [x] Slack / Teams webhook: post weekly ghost report automatically
+- [x] Tag-based filtering: skip resources tagged `keep=true` or `env=prod`
 - [ ] Terraform output: generate a `terraform destroy` plan for ghost resources
 - [ ] AWS Organizations support: scan all accounts in an org
-- [ ] Cost trend: compare this week's ghosts vs last week
+- [x] Cost trend: compare this week's ghosts vs last week
+- [ ] Kubernetes integration: scan for unused PVCs, services, and namespaces
+- [ ] Cost anomaly detection: alert on unusual spending patterns
+- [ ] Scheduled scans: built-in cron functionality for automated reporting
 
 ---
 

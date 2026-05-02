@@ -23,6 +23,10 @@ func NewRegistry(client *aws.Client) *Registry {
 	r.Register("nat", NewNATScanner(client))
 	r.Register("snapshots", NewSnapshotScanner(client))
 	r.Register("ecr", NewECRScanner(client))
+	r.Register("s3", NewS3Scanner(client.S3))
+	r.Register("cloudfront", NewCloudFrontScanner(client.CloudFront, client.CloudWatch))
+	r.Register("autoscaling", NewAutoScalingScanner(client.AutoScaling, client.EC2, client.CloudWatch))
+	r.Register("containers", NewContainerScanner(client.ECS, client.EKS, client.CloudWatch))
 
 	return r
 }

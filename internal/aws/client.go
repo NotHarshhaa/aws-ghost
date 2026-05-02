@@ -6,14 +6,19 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // Client wraps AWS SDK clients
@@ -27,6 +32,11 @@ type Client struct {
 	Lambda           *lambda.Client
 	CloudWatch       *cloudwatch.Client
 	CloudWatchLogs   *cloudwatchlogs.Client
+	S3               *s3.Client
+	CloudFront       *cloudfront.Client
+	AutoScaling      *autoscaling.Client
+	ECS              *ecs.Client
+	EKS              *eks.Client
 	AccountID        string
 	CredentialSource string
 }
@@ -69,6 +79,11 @@ func NewClient(profile, region string) (*Client, error) {
 		Lambda:           lambda.NewFromConfig(cfg),
 		CloudWatch:       cloudwatch.NewFromConfig(cfg),
 		CloudWatchLogs:   cloudwatchlogs.NewFromConfig(cfg),
+		S3:               s3.NewFromConfig(cfg),
+		CloudFront:       cloudfront.NewFromConfig(cfg),
+		AutoScaling:      autoscaling.NewFromConfig(cfg),
+		ECS:              ecs.NewFromConfig(cfg),
+		EKS:              eks.NewFromConfig(cfg),
 		AccountID:        accountID,
 		CredentialSource: credentialSource,
 	}, nil
