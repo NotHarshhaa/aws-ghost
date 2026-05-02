@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+
+	"github.com/NotHarshhaa/aws-ghost/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -12,6 +15,13 @@ and shows you exactly what they're costing you.
 
 It is read-only, safe, and honest. It tells you what's wasting money so you can
 decide what to do with it.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// Show logo and help when no command is provided
+		fmt.Println(ui.GetLogo())
+		fmt.Println(ui.GetWelcomeMessage())
+		fmt.Println()
+		cmd.Help()
+	},
 }
 
 // Execute runs the root command

@@ -9,6 +9,7 @@ import (
 	"github.com/NotHarshhaa/aws-ghost/internal/output"
 	"github.com/NotHarshhaa/aws-ghost/internal/scanner"
 	"github.com/NotHarshhaa/aws-ghost/internal/security"
+	"github.com/NotHarshhaa/aws-ghost/internal/ui"
 	"github.com/NotHarshhaa/aws-ghost/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -104,6 +105,17 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// Get filtered scanners
 	scanners := registry.GetFiltered(onlyList, skipList)
 
+	// Initialize progress indicator
+	var resourceTypes []string
+	for name := range scanners {
+		resourceTypes = append(resourceTypes, name)
+	}
+
+	progress := ui.NewSimpleProgress(resourceTypes)
+	if !quiet {
+		progress.Start()
+	}
+
 	// Scan
 	var allResources []types.Resource
 	var scannedTypes []string
@@ -169,6 +181,16 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 		allResources = append(allResources, filtered...)
 		scannedTypes = append(scannedTypes, name)
+
+		// Update progress
+		if !quiet {
+			progress.Update(name)
+		}
+	}
+
+	// Complete progress
+	if !quiet {
+		progress.Complete()
 	}
 
 	// Calculate total cost
@@ -187,20 +209,30 @@ func runScan(cmd *cobra.Command, args []string) error {
 		ScannedTypes: scannedTypes,
 	}
 
-	// Format output
-	formatter, err := output.GetFormatter(outputFmt, noColor, quiet)
-	if err != nil {
-		return fmt.Errorf("failed to get formatter: %w", err)
-	}
+	// Use new UI formatter for text output, fall back to original for other formats
+	if outputFmt == "text" {
+		formatter := ui.NewFormatter(!noColor, quiet)
+		outputStr, err := formatter.Format(result)
+		if err != nil {
+			return fmt.Errorf("failed to format output: %w", err)
+		}
+		fmt.Println(outputStr)
+	} else {
+		// Use original formatter for json, markdown, csv
+		formatter, err := output.GetFormatter(outputFmt, noColor, quiet)
+		if err != nil {
+			return fmt.Errorf("failed to get formatter: %w", err)
+		}
 
-	outputStr, err := formatter.Format(result)
-	if err != nil {
-		return fmt.Errorf("failed to format output: %w", err)
-	}
+		outputStr, err := formatter.Format(result)
+		if err != nil {
+			return fmt.Errorf("failed to format output: %w", err)
+		}
 
-	// Write output
-	if err := output.WriteOutput(outputStr, ""); err != nil {
-		return fmt.Errorf("failed to write output: %w", err)
+		// Write output
+		if err := output.WriteOutput(outputStr, ""); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
 	}
 
 	return nil

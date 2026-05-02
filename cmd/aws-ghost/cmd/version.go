@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/NotHarshhaa/aws-ghost/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -11,6 +12,10 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number",
 	Long:  `Print the version number of aws-ghost.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("aws-ghost v0.1.0")
+		fmt.Println(ui.GetCompactLogo())
+		fmt.Println()
+		fmt.Println("aws-ghost v1.0.0")
+		fmt.Println()
+		fmt.Println("Scan your AWS account for forgotten, idle, and wasteful resources")
 	},
 }
