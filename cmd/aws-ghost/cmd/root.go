@@ -23,4 +23,5 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(reportCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(securityCmd)
 }

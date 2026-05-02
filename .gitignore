@@ -5,8 +5,8 @@
 *.so
 *.dylib
 bin/
-aws-ghost
-aws-ghost.exe
+/aws-ghost
+/aws-ghost.exe
 
 # Test binary, built with `go test -c`
 *.test
