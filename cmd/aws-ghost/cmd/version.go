@@ -14,7 +14,7 @@ var versionCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println(ui.GetCompactLogo())
 		fmt.Println()
-		fmt.Println("aws-ghost v2.0.0")
+		fmt.Println("aws-ghost v2.1.0")
 		fmt.Println()
 		fmt.Println("Scan your AWS account for forgotten, idle, and wasteful resources")
 	},

@@ -36,4 +36,9 @@ func init() {
 	rootCmd.AddCommand(trendsCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(securityCmd)
+	rootCmd.AddCommand(budgetCmd)
+	rootCmd.AddCommand(anomalyCmd)
+	rootCmd.AddCommand(recommendCmd)
+	rootCmd.AddCommand(terraformCmd)
+	rootCmd.AddCommand(scheduleCmd)
 }

@@ -190,7 +190,7 @@ func runFix(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Printf("✅ CLEANUP COMPLETE: Cleaned up %d resources for $%.2f/month savings\n", totalCleaned, totalSavings)
 		fmt.Println()
-		fmt.Println("💰 Estimated annual savings: $%.2f", totalSavings*12)
+		fmt.Printf("💰 Estimated annual savings: $%.2f\n", totalSavings*12)
 	}
 
 	return nil
@@ -245,7 +245,7 @@ func cleanupResources(ctx context.Context, client *aws.Client, resources []types
 	return cleaned, totalSavings, nil
 }
 
-func hasProtectionTags(client *aws.Client, resource types.Resource) bool {
+func hasProtectionTags(_ *aws.Client, _ types.Resource) bool {
 	// This would check for tags like "keep=true", "env=prod", etc.
 	// Implementation depends on resource type
 	// For now, return false as placeholder
@@ -272,19 +272,19 @@ func deleteResource(ctx context.Context, client *aws.Client, resource types.Reso
 }
 
 // Placeholder functions for resource deletion
-func deleteS3Bucket(ctx context.Context, client *s3.Client, bucketName string) error {
+func deleteS3Bucket(_ context.Context, _ *s3.Client, _ string) error {
 	// Implementation would:
 	// 1. Delete all objects in bucket
 	// 2. Delete bucket
 	return fmt.Errorf("S3 bucket deletion not yet implemented")
 }
 
-func deleteEBSVolume(ctx context.Context, client *ec2.Client, volumeId string) error {
+func deleteEBSVolume(_ context.Context, _ *ec2.Client, _ string) error {
 	// Implementation would delete the EBS volume
 	return fmt.Errorf("EBS volume deletion not yet implemented")
 }
 
-func deleteElasticIP(ctx context.Context, client *ec2.Client, allocationId string) error {
+func deleteElasticIP(_ context.Context, _ *ec2.Client, _ string) error {
 	// Implementation would release the Elastic IP
 	return fmt.Errorf("Elastic IP deletion not yet implemented")
 }

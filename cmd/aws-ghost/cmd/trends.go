@@ -102,7 +102,7 @@ func runTrends(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save current scan for future comparison
-	err = saveCurrentScan(currentResults)
+	err = saveTrendsScan(currentResults)
 	if err != nil {
 		fmt.Printf("⚠️  Could not save current scan: %v\n", err)
 	}
@@ -523,7 +523,7 @@ func generateTextTrends(trends TrendData) string {
 	return sb.String()
 }
 
-func saveCurrentScan(results []types.ScanResult) error {
+func saveTrendsScan(results []types.ScanResult) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err

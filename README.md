@@ -199,6 +199,73 @@ aws-ghost trends --teams-webhook https://outlook.office.com/... --notify
 aws-ghost webhooks --test --slack-webhook https://hooks.slack.com/...
 ```
 
+### Budget alerts (NEW!)
+```bash
+# Set a monthly budget of $100 for ghost resource waste
+aws-ghost budget --set --amount 100 --period monthly
+
+# Check current waste against budget
+aws-ghost budget --check
+
+# Check and send notification if over budget
+aws-ghost budget --check --notify --webhook https://hooks.slack.com/...
+
+# View current budget configuration
+aws-ghost budget
+```
+
+### Cost anomaly detection (NEW!)
+```bash
+# Detect cost anomalies in the last 30 days
+aws-ghost anomaly
+
+# Analyze last 60 days with custom threshold
+aws-ghost anomaly --days 60 --threshold 2.5
+
+# Export anomaly results to JSON
+aws-ghost anomaly --output json > anomaly-report.json
+```
+
+### Resource recommendations (NEW!)
+```bash
+# Get optimization recommendations
+aws-ghost recommend
+
+# Get detailed recommendations with reasoning
+aws-ghost recommend --detailed
+
+# Export recommendations to JSON
+aws-ghost recommend --output json
+```
+
+### Terraform export (NEW!)
+```bash
+# Generate Terraform destroy plan for ghost resources
+aws-ghost terraform
+
+# Export to specific file
+aws-ghost terraform --output ghost-destroy.tf
+
+# Include state import commands
+aws-ghost terraform --include-state
+```
+
+### Scheduled scans (NEW!)
+```bash
+# Add a scheduled scan (every Monday at 9am)
+aws-ghost schedule --cron "0 9 * * 1" --command scan
+
+# List all scheduled scans
+aws-ghost schedule --list
+
+# Remove a scheduled scan
+aws-ghost schedule --remove sched-123456
+
+# Enable/disable a schedule
+aws-ghost schedule --enable sched-123456
+aws-ghost schedule --disable sched-123456
+```
+
 ---
 
 ## What it scans
@@ -382,6 +449,45 @@ aws-ghost security levels
 
 ---
 
+## 🆕 What's New in v2.1.0
+
+### Budget Alerts
+- **Set waste budgets** define monthly/weekly/daily spending thresholds
+- **Real-time monitoring** check current waste against budget limits
+- **Webhook notifications** automatic alerts when budget is exceeded
+- **Budget tracking** persistent configuration across scans
+- **Multi-period support** flexible budget periods for different use cases
+
+### Cost Anomaly Detection
+- **Statistical analysis** detect unusual spending patterns using standard deviation
+- **Historical tracking** automatically builds history from scan results
+- **Customizable thresholds** adjust sensitivity for anomaly detection
+- **Resource-level analysis** identify which resources contribute to anomalies
+- **Multi-format export** JSON output for integration with monitoring tools
+
+### Resource Recommendations
+- **Prioritized suggestions** high/medium/low priority recommendations
+- **Actionable insights** specific steps for cost optimization
+- **Resource-specific advice** tailored recommendations per resource type
+- **Savings estimation** calculate potential cost impact
+- **Best practices** guidance on AWS cost optimization
+
+### Terraform Export
+- **Generate destroy plans** export ghost resources as Terraform configuration
+- **Controlled cleanup** use Terraform for auditable resource deletion
+- **State import commands** optional import commands for existing resources
+- **Multi-resource support** handles all supported resource types
+- **Safety-first** requires manual review before applying changes
+
+### Scheduled Scans
+- **Built-in scheduling** configure automated scans with cron expressions
+- **Schedule management** add, list, enable, disable, and remove schedules
+- **Multi-schedule support** configure different schedules for different needs
+- **Profile/region configuration** per-schedule AWS credentials and regions
+- **Manual execution** run scheduled scans on-demand
+
+---
+
 ## 🆕 What's New in v2.0
 
 ### Automated Cleanup
@@ -421,12 +527,14 @@ aws-ghost security levels
 - [x] `--fix` command — interactive prompt to delete confirmed ghosts one by one
 - [x] Slack / Teams webhook: post weekly ghost report automatically
 - [x] Tag-based filtering: skip resources tagged `keep=true` or `env=prod`
-- [ ] Terraform output: generate a `terraform destroy` plan for ghost resources
+- [x] Terraform output: generate a `terraform destroy` plan for ghost resources
 - [ ] AWS Organizations support: scan all accounts in an org
 - [x] Cost trend: compare this week's ghosts vs last week
 - [ ] Kubernetes integration: scan for unused PVCs, services, and namespaces
-- [ ] Cost anomaly detection: alert on unusual spending patterns
-- [ ] Scheduled scans: built-in cron functionality for automated reporting
+- [x] Cost anomaly detection: alert on unusual spending patterns
+- [x] Scheduled scans: built-in cron functionality for automated reporting
+- [x] Budget alerts: set and monitor waste budgets
+- [x] Resource recommendations: AI-powered optimization suggestions
 
 ---
 
