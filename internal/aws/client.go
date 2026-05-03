@@ -10,15 +10,22 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sns"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
 // Client wraps AWS SDK clients
@@ -37,6 +44,13 @@ type Client struct {
 	AutoScaling      *autoscaling.Client
 	ECS              *ecs.Client
 	EKS              *eks.Client
+	ElastiCache      *elasticache.Client
+	OpenSearch       *opensearch.Client
+	Redshift         *redshift.Client
+	DynamoDB         *dynamodb.Client
+	Kinesis          *kinesis.Client
+	SQS              *sqs.Client
+	SNS              *sns.Client
 	AccountID        string
 	CredentialSource string
 }
@@ -84,6 +98,13 @@ func NewClient(profile, region string) (*Client, error) {
 		AutoScaling:      autoscaling.NewFromConfig(cfg),
 		ECS:              ecs.NewFromConfig(cfg),
 		EKS:              eks.NewFromConfig(cfg),
+		ElastiCache:      elasticache.NewFromConfig(cfg),
+		OpenSearch:       opensearch.NewFromConfig(cfg),
+		Redshift:         redshift.NewFromConfig(cfg),
+		DynamoDB:         dynamodb.NewFromConfig(cfg),
+		Kinesis:          kinesis.NewFromConfig(cfg),
+		SQS:              sqs.NewFromConfig(cfg),
+		SNS:              sns.NewFromConfig(cfg),
 		AccountID:        accountID,
 		CredentialSource: credentialSource,
 	}, nil

@@ -10,7 +10,7 @@ $ aws-ghost scan --region us-east-1
  AWS Ghost Scanner ────────────────────────────────────────────
   Account   123456789012
   Region    us-east-1
-  Scanned   14 resource types in 12s
+  Scanned   21 resource types in 12s
 
  Ghosts Found: 23 resources — estimated waste: $284.50/month
 
@@ -286,10 +286,17 @@ aws-ghost schedule --disable sched-123456
 | Idle EC2 Instances | CPU < 5% avg over 14 days | full instance cost |
 | Stopped EC2 Instances | Stopped for 14+ days (EBS still billing) | EBS cost |
 | Old AMIs | Not used by any running instance, 90+ days old | snapshot cost |
-| **S3 Buckets** | Empty or contains old objects without lifecycle policy | $/GB/month |
-| **CloudFront Distributions** | Disabled or zero traffic for 30+ days | $0.50/mo + data transfer |
-| **Auto Scaling Groups** | Empty, no instances, or underutilized (<10% CPU) | Instance costs |
-| **ECS/EKS Clusters** | Empty clusters or idle services/node groups | Control plane costs |
+| S3 Buckets | Empty or contains old objects without lifecycle policy | $/GB/month |
+| CloudFront Distributions | Disabled or zero traffic for 30+ days | $0.50/mo + data transfer |
+| Auto Scaling Groups | Empty, no instances, or underutilized (<10% CPU) | Instance costs |
+| ECS/EKS Clusters | Empty clusters or idle services/node groups | Control plane costs |
+| ElastiCache Clusters | Available clusters with low connection/activity | $25/node/month + data |
+| OpenSearch Domains | Available domains with minimal search activity | $35/node/month + storage |
+| Redshift Clusters | Available clusters with low query activity | $0.25/node/hr + storage |
+| DynamoDB Tables | Tables with low read/write activity or old data | $/GB/month + throughput |
+| Kinesis Streams | Streams with minimal data throughput | $0.036/shard/hr + retention |
+| SQS Queues | Queues with few messages and low activity | $0.40/million requests |
+| SNS Topics | Topics with few subscriptions or no publishing | $0.50/million requests |
 
 ---
 
@@ -449,6 +456,32 @@ aws-ghost security levels
 
 ---
 
+## 🆕 What's New in v2.2.0
+
+### Expanded AWS Service Coverage
+- **ElastiCache clusters** detect idle Redis and Memcached clusters with cost estimation
+- **OpenSearch domains** identify underutilized OpenSearch domains and their node configurations
+- **Redshift clusters** scan for idle data warehouses with accurate cost calculations
+- **DynamoDB tables** find tables with low activity or outdated retention policies
+- **Kinesis streams** detect idle data streams with shard-based cost analysis
+- **SQS queues** identify queues with minimal message activity
+- **SNS topics** scan for topics with few or no subscriptions
+
+### Enhanced Cost Analysis
+- **Database service optimization** specialized cost detection for managed databases
+- **Streaming service efficiency** accurate cost modeling for Kinesis streams
+- **Messaging service insights** comprehensive analysis of SQS and SNS usage patterns
+- **Cache service monitoring** intelligent detection of ElastiCache waste
+- **Search service optimization** OpenSearch domain utilization analysis
+
+### Improved Resource Intelligence
+- **Service-specific metrics** tailored idle detection for each AWS service type
+- **Enhanced metadata** detailed resource information for better decision making
+- **Accurate cost models** updated pricing for all newly supported services
+- **Better categorization** organized resource grouping by service family
+
+---
+
 ## 🆕 What's New in v2.1.0
 
 ### Budget Alerts
@@ -513,6 +546,13 @@ aws-ghost security levels
 - **CloudFront distributions** disabled or zero-traffic distributions
 - **Auto Scaling Groups** empty, underutilized, or misconfigured groups
 - **Container services** ECS/EKS clusters and services with no running tasks
+- **ElastiCache clusters** idle Redis and Memcached clusters
+- **OpenSearch domains** underutilized search domains
+- **Redshift clusters** idle data warehouses
+- **DynamoDB tables** tables with low activity
+- **Kinesis streams** idle data streams
+- **SQS queues** inactive message queues
+- **SNS topics** unused notification topics
 
 ### Tag-Based Filtering
 - **Protection tags** skip resources with `keep=true`, `critical=true`
@@ -535,6 +575,13 @@ aws-ghost security levels
 - [x] Scheduled scans: built-in cron functionality for automated reporting
 - [x] Budget alerts: set and monitor waste budgets
 - [x] Resource recommendations: AI-powered optimization suggestions
+- [x] ElastiCache support: scan for idle Redis and Memcached clusters
+- [x] OpenSearch support: detect underutilized search domains
+- [x] Redshift support: identify idle data warehouses
+- [x] DynamoDB support: find tables with low activity
+- [x] Kinesis support: scan for idle data streams
+- [x] SQS support: detect inactive message queues
+- [x] SNS support: find unused notification topics
 
 ---
 
