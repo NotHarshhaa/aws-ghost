@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -256,8 +258,23 @@ func sendBudgetAlert(webhook, budget, current, over, account string) {
 		},
 	}
 
-	data, _ := json.Marshal(alert)
-	// In a real implementation, you would send this to the webhook
-	fmt.Printf("📢 Budget alert would be sent to: %s\n", webhook)
-	fmt.Printf("   Payload: %s\n", string(data))
+	data, err := json.Marshal(alert)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to marshal alert payload: %v\n", err)
+		return
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(webhook, "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to send budget alert: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		fmt.Printf("📢 Budget alert sent successfully to webhook\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "❌ Webhook returned status %d\n", resp.StatusCode)
+	}
 }

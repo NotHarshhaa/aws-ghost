@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/NotHarshhaa/aws-ghost/internal/aws"
+	"github.com/NotHarshhaa/aws-ghost/internal/scanner"
+	"github.com/NotHarshhaa/aws-ghost/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -17,8 +20,8 @@ var (
 	scheduleRegion  string
 	scheduleList    bool
 	scheduleRemove  string
-	scheduleEnable  bool
-	scheduleDisable bool
+	scheduleEnable  string
+	scheduleDisable string
 )
 
 var scheduleCmd = &cobra.Command{
@@ -28,6 +31,13 @@ var scheduleCmd = &cobra.Command{
 	RunE:  runSchedule,
 }
 
+var scheduleRunCmd = &cobra.Command{
+	Use:   "run [schedule-id]",
+	Short: "Run a scheduled scan manually",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runScheduleManual,
+}
+
 func init() {
 	scheduleCmd.Flags().StringVar(&scheduleCron, "cron", "0 9 * * 1", "Cron expression (default: every Monday at 9am)")
 	scheduleCmd.Flags().StringVar(&scheduleCommand, "command", "scan", "Command to run (scan, check, anomaly)")
@@ -35,8 +45,10 @@ func init() {
 	scheduleCmd.Flags().StringVar(&scheduleRegion, "region", "us-east-1", "AWS region to scan")
 	scheduleCmd.Flags().BoolVar(&scheduleList, "list", false, "List all scheduled scans")
 	scheduleCmd.Flags().StringVar(&scheduleRemove, "remove", "", "Remove a scheduled scan by ID")
-	scheduleCmd.Flags().BoolVar(&scheduleEnable, "enable", false, "Enable a scheduled scan")
-	scheduleCmd.Flags().BoolVar(&scheduleDisable, "disable", false, "Disable a scheduled scan")
+	scheduleCmd.Flags().StringVar(&scheduleEnable, "enable", "", "Enable a scheduled scan by ID")
+	scheduleCmd.Flags().StringVar(&scheduleDisable, "disable", "", "Disable a scheduled scan by ID")
+
+	scheduleCmd.AddCommand(scheduleRunCmd)
 }
 
 func runSchedule(cmd *cobra.Command, args []string) error {
@@ -46,15 +58,89 @@ func runSchedule(cmd *cobra.Command, args []string) error {
 	if scheduleRemove != "" {
 		return removeSchedule(scheduleRemove)
 	}
-	if scheduleEnable {
-		return toggleSchedule(args[0], true)
+	if scheduleEnable != "" {
+		return toggleSchedule(scheduleEnable, true)
 	}
-	if scheduleDisable {
-		return toggleSchedule(args[0], false)
+	if scheduleDisable != "" {
+		return toggleSchedule(scheduleDisable, false)
 	}
 
 	// Add new schedule
 	return addSchedule()
+}
+
+func runScheduleManual(cmd *cobra.Command, args []string) error {
+	scheduleID := args[0]
+
+	// Load schedules
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return fmt.Errorf("failed to get config directory: %w", err)
+	}
+
+	schedulePath := filepath.Join(configDir, "aws-ghost", "schedules.json")
+	data, err := os.ReadFile(schedulePath)
+	if err != nil {
+		return fmt.Errorf("no schedules found: %w", err)
+	}
+
+	var schedules []ScheduledScan
+	if err := json.Unmarshal(data, &schedules); err != nil {
+		return fmt.Errorf("failed to parse schedules: %w", err)
+	}
+
+	// Find the schedule
+	var target *ScheduledScan
+	for i := range schedules {
+		if schedules[i].ID == scheduleID {
+			target = &schedules[i]
+			break
+		}
+	}
+
+	if target == nil {
+		return fmt.Errorf("schedule %s not found", scheduleID)
+	}
+
+	if !target.Enabled {
+		return fmt.Errorf("schedule %s is disabled", scheduleID)
+	}
+
+	fmt.Printf("🚀 Running schedule: %s\n", target.ID)
+	fmt.Printf("   Command: %s | Region: %s | Profile: %s\n\n", target.Command, target.Region, target.Profile)
+
+	// Execute the scan
+	prof := target.Profile
+	reg := target.Region
+	if reg == "" {
+		reg = "us-east-1"
+	}
+
+	client, err := aws.NewClient(prof, reg)
+	if err != nil {
+		return fmt.Errorf("failed to create AWS client: %w", err)
+	}
+
+	registry := scanner.NewRegistry(client)
+	scanners := registry.GetAll()
+
+	var totalCost float64
+	var totalResources int
+	for name, scn := range scanners {
+		config := types.ScanConfig{Region: reg, Profile: prof, IdleDays: 7}
+		resources, err := scn.Scan(config)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to scan %s: %v\n", name, err)
+			continue
+		}
+		totalResources += len(resources)
+		for _, r := range resources {
+			totalCost += r.MonthlyCost
+		}
+	}
+
+	fmt.Printf("✅ Scan complete: %d ghost resources, $%.2f/month waste\n", totalResources, totalCost)
+	return nil
 }
 
 func addSchedule() error {
@@ -70,14 +156,12 @@ func addSchedule() error {
 
 	schedulePath := filepath.Join(ghostDir, "schedules.json")
 
-	// Load existing schedules
 	var schedules []ScheduledScan
 	data, err := os.ReadFile(schedulePath)
 	if err == nil {
 		json.Unmarshal(data, &schedules)
 	}
 
-	// Create new schedule
 	newSchedule := ScheduledScan{
 		ID:        generateScheduleID(),
 		Cron:      scheduleCron,
@@ -86,12 +170,11 @@ func addSchedule() error {
 		Region:    scheduleRegion,
 		Enabled:   true,
 		CreatedAt: time.Now().Format(time.RFC3339),
-		NextRun:   calculateNextRun(scheduleCron),
+		NextRun:   "Next execution based on cron: " + scheduleCron,
 	}
 
 	schedules = append(schedules, newSchedule)
 
-	// Save schedules
 	data, err = json.MarshalIndent(schedules, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal schedules: %w", err)
@@ -106,12 +189,8 @@ func addSchedule() error {
 	fmt.Printf("  ID: %s\n", newSchedule.ID)
 	fmt.Printf("  Cron: %s\n", newSchedule.Cron)
 	fmt.Printf("  Command: %s\n", newSchedule.Command)
-	fmt.Printf("  Profile: %s\n", newSchedule.Profile)
 	fmt.Printf("  Region: %s\n", newSchedule.Region)
-	fmt.Printf("  Next Run: %s\n", newSchedule.NextRun)
-	fmt.Printf("\nNote: To actually run scheduled scans, set up a system cron job or use a task scheduler:\n")
-	fmt.Printf("  Linux/Mac: Add to crontab: %s aws-ghost schedule run %s\n", newSchedule.Cron, newSchedule.ID)
-	fmt.Printf("  Windows: Use Task Scheduler to run: aws-ghost schedule run %s\n", newSchedule.ID)
+	fmt.Printf("\nTo run manually: aws-ghost schedule run %s\n", newSchedule.ID)
 
 	return nil
 }
@@ -137,35 +216,23 @@ func listSchedules() error {
 		return fmt.Errorf("failed to parse schedules: %w", err)
 	}
 
-	fmt.Printf("\n📅 Scheduled Scans\n")
-	fmt.Printf("==================\n\n")
-
 	if len(schedules) == 0 {
 		fmt.Println("No scheduled scans configured.")
 		return nil
 	}
+
+	fmt.Printf("\n📅 Scheduled Scans\n")
+	fmt.Printf("==================\n\n")
 
 	for i, s := range schedules {
 		status := "✅ Enabled"
 		if !s.Enabled {
 			status = "❌ Disabled"
 		}
-		fmt.Printf("%d. %s\n", i+1, s.ID)
-		fmt.Printf("   Status: %s\n", status)
-		fmt.Printf("   Cron: %s\n", s.Cron)
-		fmt.Printf("   Command: %s\n", s.Command)
-		fmt.Printf("   Profile: %s\n", s.Profile)
-		fmt.Printf("   Region: %s\n", s.Region)
-		fmt.Printf("   Next Run: %s\n", s.NextRun)
-		fmt.Printf("   Created: %s\n", s.CreatedAt)
-		fmt.Printf("\n")
+		fmt.Printf("%d. %s [%s]\n", i+1, s.ID, status)
+		fmt.Printf("   Cron: %s | Command: %s | Region: %s\n", s.Cron, s.Command, s.Region)
+		fmt.Printf("   Created: %s\n\n", s.CreatedAt)
 	}
-
-	fmt.Println("Commands:")
-	fmt.Println("  aws-ghost schedule --remove <id>    Remove a schedule")
-	fmt.Println("  aws-ghost schedule --enable <id>    Enable a schedule")
-	fmt.Println("  aws-ghost schedule --disable <id>   Disable a schedule")
-	fmt.Println("  aws-ghost schedule run <id>         Run a schedule manually")
 
 	return nil
 }
@@ -188,7 +255,6 @@ func removeSchedule(id string) error {
 		return fmt.Errorf("failed to parse schedules: %w", err)
 	}
 
-	// Find and remove the schedule
 	var updated []ScheduledScan
 	found := false
 	for _, s := range schedules {
@@ -203,7 +269,6 @@ func removeSchedule(id string) error {
 		return fmt.Errorf("schedule with ID %s not found", id)
 	}
 
-	// Save updated schedules
 	data, err = json.MarshalIndent(updated, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal schedules: %w", err)
@@ -235,7 +300,6 @@ func toggleSchedule(id string, enable bool) error {
 		return fmt.Errorf("failed to parse schedules: %w", err)
 	}
 
-	// Find and toggle the schedule
 	found := false
 	for i := range schedules {
 		if schedules[i].ID == id {
@@ -249,7 +313,6 @@ func toggleSchedule(id string, enable bool) error {
 		return fmt.Errorf("schedule with ID %s not found", id)
 	}
 
-	// Save updated schedules
 	data, err = json.MarshalIndent(schedules, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal schedules: %w", err)
@@ -269,12 +332,6 @@ func toggleSchedule(id string, enable bool) error {
 
 func generateScheduleID() string {
 	return fmt.Sprintf("sched-%d", time.Now().Unix())
-}
-
-func calculateNextRun(cronExpr string) string {
-	// Simplified next run calculation
-	// In a real implementation, use a proper cron library
-	return "Next execution based on cron: " + cronExpr
 }
 
 type ScheduledScan struct {

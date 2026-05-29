@@ -10,6 +10,7 @@ import (
 	"github.com/NotHarshhaa/aws-ghost/internal/scanner"
 	"github.com/NotHarshhaa/aws-ghost/internal/security"
 	"github.com/NotHarshhaa/aws-ghost/internal/ui"
+	"github.com/NotHarshhaa/aws-ghost/internal/webhook"
 	"github.com/NotHarshhaa/aws-ghost/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -28,6 +29,12 @@ var (
 	securityLevel string
 	validatePerms bool
 	auditLog      bool
+	skipProtected bool
+	tagFilter     string
+	groupBy       string
+	slackWebhook  string
+	teamsWebhook  string
+	notify        bool
 )
 
 var scanCmd = &cobra.Command{
@@ -53,6 +60,16 @@ func init() {
 	scanCmd.Flags().StringVar(&securityLevel, "security-level", "medium", "Security level: low, medium, high, strict")
 	scanCmd.Flags().BoolVar(&validatePerms, "validate-permissions", true, "Validate AWS permissions before scanning")
 	scanCmd.Flags().BoolVar(&auditLog, "audit-log", true, "Enable security audit logging")
+
+	// Tag-based filtering flags
+	scanCmd.Flags().BoolVar(&skipProtected, "skip-protected", false, "Skip resources with protection tags (keep=true, env=prod)")
+	scanCmd.Flags().StringVar(&tagFilter, "tag-filter", "", "Only scan resources with specific tag (e.g. env=dev)")
+	scanCmd.Flags().StringVar(&groupBy, "group-by", "", "Group results by tag (e.g. owner, project)")
+
+	// Webhook notification flags
+	scanCmd.Flags().StringVar(&slackWebhook, "slack-webhook", "", "Slack webhook URL for notifications")
+	scanCmd.Flags().StringVar(&teamsWebhook, "teams-webhook", "", "Microsoft Teams webhook URL for notifications")
+	scanCmd.Flags().BoolVar(&notify, "notify", false, "Send scan results to configured webhooks")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -207,6 +224,31 @@ func runScan(cmd *cobra.Command, args []string) error {
 		progress.Complete()
 	}
 
+	// Apply tag-based filtering
+	if skipProtected || tagFilter != "" {
+		var tagFiltered []types.Resource
+		for _, r := range allResources {
+			if skipProtected {
+				if v, ok := r.Metadata["keep"]; ok && v == "true" {
+					continue
+				}
+				if v, ok := r.Metadata["env"]; ok && (v == "prod" || v == "production") {
+					continue
+				}
+			}
+			if tagFilter != "" {
+				parts := strings.SplitN(tagFilter, "=", 2)
+				if len(parts) == 2 {
+					if v, ok := r.Metadata[parts[0]]; !ok || v != parts[1] {
+						continue
+					}
+				}
+			}
+			tagFiltered = append(tagFiltered, r)
+		}
+		allResources = tagFiltered
+	}
+
 	// Calculate total cost
 	totalCost := 0.0
 	for _, r := range allResources {
@@ -252,6 +294,26 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// Display API call summary for transparency
 	if !quiet && outputFmt == "text" {
 		displayAPISummary(apiTracker)
+	}
+
+	// Send webhook notifications if requested
+	if notify && (slackWebhook != "" || teamsWebhook != "") {
+		notifier := webhook.NewWebhookNotifier(slackWebhook, teamsWebhook, "")
+		results := []types.ScanResult{result}
+		if slackWebhook != "" {
+			if err := notifier.SendSlackNotification(results); err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to send Slack notification: %v\n", err)
+			} else if !quiet {
+				fmt.Println("📢 Slack notification sent")
+			}
+		}
+		if teamsWebhook != "" {
+			if err := notifier.SendTeamsNotification(results); err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to send Teams notification: %v\n", err)
+			} else if !quiet {
+				fmt.Println("📢 Teams notification sent")
+			}
+		}
 	}
 
 	return nil

@@ -8,6 +8,8 @@ import (
 	"github.com/NotHarshhaa/aws-ghost/internal/aws"
 	"github.com/NotHarshhaa/aws-ghost/internal/cost"
 	"github.com/NotHarshhaa/aws-ghost/pkg/types"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	cwtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
@@ -35,14 +37,21 @@ func (s *NATScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 	}
 
 	for _, nat := range resp.NatGateways {
-		// Skip deleting gateways
-		if nat.State == "deleted" || nat.State == "deleting" {
+		if nat.State == "deleted" || nat.State == "deleting" || nat.NatGatewayId == nil {
 			continue
 		}
 
-		// Check if NAT gateway has had zero traffic in the last 7 days
 		if s.isIdleNATGateway(*nat.NatGatewayId, config.IdleDays) {
 			idleDays := s.calculateIdleDays(nat.CreateTime)
+
+			vpcID := ""
+			if nat.VpcId != nil {
+				vpcID = *nat.VpcId
+			}
+			subnetID := ""
+			if nat.SubnetId != nil {
+				subnetID = *nat.SubnetId
+			}
 
 			resource := types.Resource{
 				ID:          *nat.NatGatewayId,
@@ -53,11 +62,10 @@ func (s *NATScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 				IdleDays:    idleDays,
 				MonthlyCost: s.calc.NATGatewayCost(),
 				Metadata: map[string]string{
-					"vpc_id":     *nat.VpcId,
-					"subnet_id":  *nat.SubnetId,
-					"created_at": nat.CreateTime.Format(time.RFC3339),
+					"vpc_id":    vpcID,
+					"subnet_id": subnetID,
 				},
-				LastActive: *nat.CreateTime,
+				LastActive: time.Now().AddDate(0, 0, -idleDays),
 			}
 
 			resources = append(resources, resource)
@@ -76,9 +84,35 @@ func (s *NATScanner) Description() string {
 }
 
 func (s *NATScanner) isIdleNATGateway(natID string, idleDays int) bool {
-	// For now, assume all NAT gateways older than idleDays are idle
-	// In a full implementation, this would check CloudWatch metrics
-	// for bytes processed over the time period
+	endTime := time.Now()
+	startTime := endTime.AddDate(0, 0, -idleDays)
+	period := int32(86400) // 1 day
+
+	input := &cloudwatch.GetMetricStatisticsInput{
+		Namespace:  strPtr("AWS/NATGateway"),
+		MetricName: strPtr("BytesOutToDestination"),
+		Dimensions: []cwtypes.Dimension{
+			{Name: strPtr("NatGatewayId"), Value: &natID},
+		},
+		StartTime:  &startTime,
+		EndTime:    &endTime,
+		Period:     &period,
+		Statistics: []cwtypes.Statistic{cwtypes.StatisticSum},
+	}
+
+	resp, err := s.client.CloudWatch.GetMetricStatistics(context.TODO(), input)
+	if err != nil {
+		// If we can't get metrics, don't flag it
+		return false
+	}
+
+	// If no datapoints or all zeros, it's idle
+	for _, dp := range resp.Datapoints {
+		if dp.Sum != nil && *dp.Sum > 0 {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -91,11 +125,13 @@ func (s *NATScanner) calculateIdleDays(createTime *time.Time) int {
 
 func getNATName(tags []ec2types.Tag) string {
 	for _, tag := range tags {
-		if tag.Key != nil && *tag.Key == "Name" {
-			if tag.Value != nil {
-				return *tag.Value
-			}
+		if tag.Key != nil && *tag.Key == "Name" && tag.Value != nil {
+			return *tag.Value
 		}
 	}
 	return ""
+}
+
+func strPtr(s string) *string {
+	return &s
 }
