@@ -10,6 +10,8 @@ import (
 	"github.com/NotHarshhaa/aws-ghost/internal/ui"
 	"github.com/NotHarshhaa/aws-ghost/pkg/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	elb "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/spf13/cobra"
 )
@@ -59,8 +61,6 @@ Examples:
 }
 
 func init() {
-	rootCmd.AddCommand(fixCmd)
-
 	fixCmd.Flags().BoolVar(&fixDryRun, "dry-run", true, "Preview what would be deleted without actually deleting")
 	fixCmd.Flags().BoolVar(&fixAutoConfirm, "auto-confirm", false, "Automatically confirm all deletions (use with caution)")
 	fixCmd.Flags().BoolVar(&fixForce, "force", false, "Force cleanup without any confirmations (DANGEROUS)")
@@ -253,40 +253,65 @@ func hasProtectionTags(_ *aws.Client, _ types.Resource) bool {
 }
 
 func deleteResource(ctx context.Context, client *aws.Client, resource types.Resource) error {
-	// Implementation would call the appropriate AWS delete API based on resource type
-	// This is a placeholder that would need to be implemented for each resource type
 	switch resource.Type {
-	case "S3 Bucket":
-		// Delete S3 bucket
-		return deleteS3Bucket(ctx, client.S3, resource.ID)
-	case "EBS Volume":
-		// Delete EBS volume
+	case "ebs":
 		return deleteEBSVolume(ctx, client.EC2, resource.ID)
-	case "Elastic IP":
-		// Release Elastic IP
+	case "eip":
 		return deleteElasticIP(ctx, client.EC2, resource.ID)
-	// Add more resource types...
+	case "nat":
+		return deleteNATGateway(ctx, client.EC2, resource.ID)
+	case "loadbalancer":
+		if strings.HasPrefix(resource.ID, "arn:") {
+			return deleteLoadBalancerV2(ctx, client.ELBv2, resource.ID)
+		}
+		return deleteClassicLB(ctx, client.ELB, resource.ID)
+	case "ec2-snapshot", "rds-snapshot":
+		return deleteSnapshot(ctx, client, resource)
+	case "s3":
+		return deleteS3Bucket(ctx, client.S3, resource.ID)
 	default:
-		return fmt.Errorf("unsupported resource type: %s", resource.Type)
+		return fmt.Errorf("cleanup not supported for resource type: %s", resource.Type)
 	}
 }
 
-// Placeholder functions for resource deletion
-func deleteS3Bucket(_ context.Context, _ *s3.Client, _ string) error {
-	// Implementation would:
-	// 1. Delete all objects in bucket
-	// 2. Delete bucket
-	return fmt.Errorf("S3 bucket deletion not yet implemented")
+func deleteEBSVolume(ctx context.Context, svc *ec2.Client, volumeID string) error {
+	_, err := svc.DeleteVolume(ctx, &ec2.DeleteVolumeInput{VolumeId: &volumeID})
+	return err
 }
 
-func deleteEBSVolume(_ context.Context, _ *ec2.Client, _ string) error {
-	// Implementation would delete the EBS volume
-	return fmt.Errorf("EBS volume deletion not yet implemented")
+func deleteElasticIP(ctx context.Context, svc *ec2.Client, allocationID string) error {
+	_, err := svc.ReleaseAddress(ctx, &ec2.ReleaseAddressInput{AllocationId: &allocationID})
+	return err
 }
 
-func deleteElasticIP(_ context.Context, _ *ec2.Client, _ string) error {
-	// Implementation would release the Elastic IP
-	return fmt.Errorf("Elastic IP deletion not yet implemented")
+func deleteNATGateway(ctx context.Context, svc *ec2.Client, natID string) error {
+	_, err := svc.DeleteNatGateway(ctx, &ec2.DeleteNatGatewayInput{NatGatewayId: &natID})
+	return err
+}
+
+func deleteLoadBalancerV2(ctx context.Context, svc *elbv2.Client, arn string) error {
+	_, err := svc.DeleteLoadBalancer(ctx, &elbv2.DeleteLoadBalancerInput{LoadBalancerArn: &arn})
+	return err
+}
+
+func deleteClassicLB(ctx context.Context, svc *elb.Client, name string) error {
+	_, err := svc.DeleteLoadBalancer(ctx, &elb.DeleteLoadBalancerInput{LoadBalancerName: &name})
+	return err
+}
+
+func deleteSnapshot(ctx context.Context, client *aws.Client, resource types.Resource) error {
+	if resource.Type == "rds-snapshot" {
+		_, err := client.RDS.DeleteDBSnapshot(ctx, nil)
+		return err
+	}
+	id := resource.ID
+	_, err := client.EC2.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{SnapshotId: &id})
+	return err
+}
+
+func deleteS3Bucket(ctx context.Context, svc *s3.Client, bucket string) error {
+	_, err := svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: &bucket})
+	return err
 }
 
 func calculateTotalCost(resources []types.Resource) float64 {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/NotHarshhaa/aws-ghost/internal/aws"
@@ -265,6 +266,6 @@ func generateStateImportCommands(resources []types.Resource) string {
 	return sb.String()
 }
 
-func writeToFile(_ string, _ string) error {
-	return nil
+func writeToFile(filename string, content string) error {
+	return os.WriteFile(filename, []byte(content), 0644)
 }

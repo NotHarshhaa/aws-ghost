@@ -2,11 +2,14 @@ package scanner
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/NotHarshhaa/aws-ghost/internal/aws"
 	"github.com/NotHarshhaa/aws-ghost/internal/cost"
 	"github.com/NotHarshhaa/aws-ghost/pkg/types"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	cwtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 )
 
 // LoadBalancerScanner scans for idle load balancers
@@ -31,9 +34,16 @@ func (s *LoadBalancerScanner) Scan(config types.ScanConfig) ([]types.Resource, e
 	albResp, err := s.client.ELBv2.DescribeLoadBalancers(context.TODO(), nil)
 	if err == nil {
 		for _, lb := range albResp.LoadBalancers {
-			// Check if load balancer has had zero traffic in the last 7 days
+			if lb.LoadBalancerArn == nil || lb.LoadBalancerName == nil {
+				continue
+			}
 			if s.isIdleLoadBalancer(*lb.LoadBalancerArn, config.IdleDays) {
 				idleDays := s.calculateIdleDays(lb.CreatedTime)
+
+				dnsName := ""
+				if lb.DNSName != nil {
+					dnsName = *lb.DNSName
+				}
 
 				resource := types.Resource{
 					ID:          *lb.LoadBalancerArn,
@@ -44,12 +54,11 @@ func (s *LoadBalancerScanner) Scan(config types.ScanConfig) ([]types.Resource, e
 					IdleDays:    idleDays,
 					MonthlyCost: s.calc.LoadBalancerCost(string(lb.Type)),
 					Metadata: map[string]string{
-						"type":       string(lb.Type),
-						"scheme":     string(lb.Scheme),
-						"dns_name":   *lb.DNSName,
-						"created_at": lb.CreatedTime.Format(time.RFC3339),
+						"type":     string(lb.Type),
+						"scheme":   string(lb.Scheme),
+						"dns_name": dnsName,
 					},
-					LastActive: *lb.CreatedTime,
+					LastActive: time.Now().AddDate(0, 0, -idleDays),
 				}
 
 				resources = append(resources, resource)
@@ -61,8 +70,16 @@ func (s *LoadBalancerScanner) Scan(config types.ScanConfig) ([]types.Resource, e
 	clbResp, err := s.client.ELB.DescribeLoadBalancers(context.TODO(), nil)
 	if err == nil {
 		for _, lb := range clbResp.LoadBalancerDescriptions {
+			if lb.LoadBalancerName == nil {
+				continue
+			}
 			if s.isIdleClassicLB(*lb.LoadBalancerName, config.IdleDays) {
 				idleDays := s.calculateIdleDays(lb.CreatedTime)
+
+				dnsName := ""
+				if lb.DNSName != nil {
+					dnsName = *lb.DNSName
+				}
 
 				resource := types.Resource{
 					ID:          *lb.LoadBalancerName,
@@ -73,11 +90,10 @@ func (s *LoadBalancerScanner) Scan(config types.ScanConfig) ([]types.Resource, e
 					IdleDays:    idleDays,
 					MonthlyCost: s.calc.LoadBalancerCost("classic"),
 					Metadata: map[string]string{
-						"type":       "classic",
-						"dns_name":   *lb.DNSName,
-						"created_at": lb.CreatedTime.Format(time.RFC3339),
+						"type":     "classic",
+						"dns_name": dnsName,
 					},
-					LastActive: *lb.CreatedTime,
+					LastActive: time.Now().AddDate(0, 0, -idleDays),
 				}
 
 				resources = append(resources, resource)
@@ -97,14 +113,72 @@ func (s *LoadBalancerScanner) Description() string {
 }
 
 func (s *LoadBalancerScanner) isIdleLoadBalancer(arn string, idleDays int) bool {
-	// For now, assume all load balancers older than idleDays are idle
-	// In a full implementation, this would check CloudWatch metrics
-	// for request counts over the time period
+	// Extract the LB dimension value from the ARN
+	// ARN format: arn:aws:elasticloadbalancing:region:account:loadbalancer/app/name/id
+	parts := strings.SplitN(arn, ":loadbalancer/", 2)
+	if len(parts) < 2 {
+		return false
+	}
+	lbDimension := parts[1]
+
+	endTime := time.Now()
+	startTime := endTime.AddDate(0, 0, -idleDays)
+	period := int32(86400)
+
+	input := &cloudwatch.GetMetricStatisticsInput{
+		Namespace:  strPtr("AWS/ApplicationELB"),
+		MetricName: strPtr("RequestCount"),
+		Dimensions: []cwtypes.Dimension{
+			{Name: strPtr("LoadBalancer"), Value: &lbDimension},
+		},
+		StartTime:  &startTime,
+		EndTime:    &endTime,
+		Period:     &period,
+		Statistics: []cwtypes.Statistic{cwtypes.StatisticSum},
+	}
+
+	resp, err := s.client.CloudWatch.GetMetricStatistics(context.TODO(), input)
+	if err != nil {
+		return false
+	}
+
+	for _, dp := range resp.Datapoints {
+		if dp.Sum != nil && *dp.Sum > 0 {
+			return false
+		}
+	}
+
 	return true
 }
 
 func (s *LoadBalancerScanner) isIdleClassicLB(name string, idleDays int) bool {
-	// For now, assume all classic load balancers older than idleDays are idle
+	endTime := time.Now()
+	startTime := endTime.AddDate(0, 0, -idleDays)
+	period := int32(86400)
+
+	input := &cloudwatch.GetMetricStatisticsInput{
+		Namespace:  strPtr("AWS/ELB"),
+		MetricName: strPtr("RequestCount"),
+		Dimensions: []cwtypes.Dimension{
+			{Name: strPtr("LoadBalancerName"), Value: &name},
+		},
+		StartTime:  &startTime,
+		EndTime:    &endTime,
+		Period:     &period,
+		Statistics: []cwtypes.Statistic{cwtypes.StatisticSum},
+	}
+
+	resp, err := s.client.CloudWatch.GetMetricStatistics(context.TODO(), input)
+	if err != nil {
+		return false
+	}
+
+	for _, dp := range resp.Datapoints {
+		if dp.Sum != nil && *dp.Sum > 0 {
+			return false
+		}
+	}
+
 	return true
 }
 

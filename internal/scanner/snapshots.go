@@ -8,6 +8,7 @@ import (
 	"github.com/NotHarshhaa/aws-ghost/internal/aws"
 	"github.com/NotHarshhaa/aws-ghost/internal/cost"
 	"github.com/NotHarshhaa/aws-ghost/pkg/types"
+	ec2svc "github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 )
@@ -101,14 +102,15 @@ func (s *SnapshotScanner) scanRDSSnapshots(config types.ScanConfig) ([]types.Res
 func (s *SnapshotScanner) scanEC2Snapshots(config types.ScanConfig) ([]types.Resource, error) {
 	var resources []types.Resource
 
-	resp, err := s.client.EC2.DescribeSnapshots(context.TODO(), nil)
+	resp, err := s.client.EC2.DescribeSnapshots(context.TODO(), &ec2svc.DescribeSnapshotsInput{
+		OwnerIds: []string{"self"},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to describe EC2 snapshots: %w", err)
 	}
 
 	for _, snap := range resp.Snapshots {
-		// Skip snapshots owned by AWS (AMI snapshots)
-		if *snap.OwnerId != s.client.AccountID {
+		if snap.SnapshotId == nil || snap.StartTime == nil {
 			continue
 		}
 
@@ -122,6 +124,11 @@ func (s *SnapshotScanner) scanEC2Snapshots(config types.ScanConfig) ([]types.Res
 					volumeSize = *snap.VolumeSize
 				}
 
+				volumeID := ""
+				if snap.VolumeId != nil {
+					volumeID = *snap.VolumeId
+				}
+
 				resource := types.Resource{
 					ID:          *snap.SnapshotId,
 					Type:        "ec2-snapshot",
@@ -132,7 +139,7 @@ func (s *SnapshotScanner) scanEC2Snapshots(config types.ScanConfig) ([]types.Res
 					MonthlyCost: s.calc.SnapshotCost(int(volumeSize)),
 					Metadata: map[string]string{
 						"size_gb":    fmt.Sprintf("%d", volumeSize),
-						"volume_id":  *snap.VolumeId,
+						"volume_id":  volumeID,
 						"created_at": snap.StartTime.Format(time.RFC3339),
 					},
 					LastActive: *snap.StartTime,
