@@ -49,9 +49,12 @@ func (s *SnapshotScanner) Scan(config types.ScanConfig) ([]types.Resource, error
 func (s *SnapshotScanner) scanRDSSnapshots(config types.ScanConfig) ([]types.Resource, error) {
 	var resources []types.Resource
 
-	resp, err := s.client.RDS.DescribeDBSnapshots(context.TODO(), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	resp, err := s.client.RDS.DescribeDBSnapshots(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to describe RDS snapshots: %w", err)
+		return nil, fmt.Errorf("failed to describe RDS snapshots: %w\nTip: Ensure you have rds:DescribeDBSnapshots permission", err)
 	}
 
 	for _, snap := range resp.DBSnapshots {
@@ -102,11 +105,14 @@ func (s *SnapshotScanner) scanRDSSnapshots(config types.ScanConfig) ([]types.Res
 func (s *SnapshotScanner) scanEC2Snapshots(config types.ScanConfig) ([]types.Resource, error) {
 	var resources []types.Resource
 
-	resp, err := s.client.EC2.DescribeSnapshots(context.TODO(), &ec2svc.DescribeSnapshotsInput{
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	resp, err := s.client.EC2.DescribeSnapshots(ctx, &ec2svc.DescribeSnapshotsInput{
 		OwnerIds: []string{"self"},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to describe EC2 snapshots: %w", err)
+		return nil, fmt.Errorf("failed to describe EC2 snapshots: %w\nTip: Ensure you have ec2:DescribeSnapshots permission", err)
 	}
 
 	for _, snap := range resp.Snapshots {

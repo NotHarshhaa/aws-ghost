@@ -30,10 +30,13 @@ func NewECRScanner(client *aws.Client) *ECRScanner {
 func (s *ECRScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 	var resources []types.Resource
 
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
 	// List all repositories
-	repoResp, err := s.client.ECR.DescribeRepositories(context.TODO(), &ecr.DescribeRepositoriesInput{})
+	repoResp, err := s.client.ECR.DescribeRepositories(ctx, &ecr.DescribeRepositoriesInput{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to describe ECR repositories: %w", err)
+		return nil, fmt.Errorf("failed to describe ECR repositories: %w\nTip: Ensure you have ecr:DescribeRepositories permission", err)
 	}
 
 	for _, repo := range repoResp.Repositories {
@@ -42,7 +45,7 @@ func (s *ECRScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 		}
 
 		// List images in the repository
-		imgResp, err := s.client.ECR.DescribeImages(context.TODO(), &ecr.DescribeImagesInput{
+		imgResp, err := s.client.ECR.DescribeImages(ctx, &ecr.DescribeImagesInput{
 			RepositoryName: repo.RepositoryName,
 			Filter:         &ecrtypes.DescribeImagesFilter{TagStatus: ecrtypes.TagStatusAny},
 		})

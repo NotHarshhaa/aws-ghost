@@ -72,6 +72,11 @@ func (c *Calculator) ElasticIPCost() float64 {
 // ALB/NLB: ~$0.0225/hr + LCU costs (updated 2024)
 // CLB: ~$0.025/hr
 func (c *Calculator) LoadBalancerCost(lbType string) float64 {
+	cacheKey := fmt.Sprintf("lb:%s", lbType)
+	if cached, ok := c.getCached(cacheKey); ok {
+		return cached
+	}
+
 	prices := map[string]float64{
 		"application": 16.20, // $0.0225/hr * 30 days + LCU costs
 		"network":     16.20, // $0.0225/hr * 30 days + LCU costs
@@ -84,6 +89,7 @@ func (c *Calculator) LoadBalancerCost(lbType string) float64 {
 		price = 16.20 // default to ALB
 	}
 
+	c.setCached(cacheKey, price)
 	return price
 }
 
@@ -96,13 +102,31 @@ func (c *Calculator) NATGatewayCost() float64 {
 // SnapshotCost calculates monthly cost for a snapshot
 // ~$0.05 per GB/month
 func (c *Calculator) SnapshotCost(sizeGB int) float64 {
-	return float64(sizeGB) * 0.05
+	if sizeGB < 0 {
+		return 0
+	}
+	cacheKey := fmt.Sprintf("snapshot:%d", sizeGB)
+	if cached, ok := c.getCached(cacheKey); ok {
+		return cached
+	}
+	cost := float64(sizeGB) * 0.05
+	c.setCached(cacheKey, cost)
+	return cost
 }
 
 // ECRImageCost calculates monthly cost for ECR images
 // ~$0.10 per GB/month
 func (c *Calculator) ECRImageCost(sizeGB int) float64 {
-	return float64(sizeGB) * 0.10
+	if sizeGB < 0 {
+		return 0
+	}
+	cacheKey := fmt.Sprintf("ecr:%d", sizeGB)
+	if cached, ok := c.getCached(cacheKey); ok {
+		return cached
+	}
+	cost := float64(sizeGB) * 0.10
+	c.setCached(cacheKey, cost)
+	return cost
 }
 
 // EC2InstanceCost estimates monthly cost for an EC2 instance

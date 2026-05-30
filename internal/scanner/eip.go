@@ -28,9 +28,12 @@ func NewEIPScanner(client *aws.Client) *EIPScanner {
 func (s *EIPScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 	var resources []types.Resource
 
-	resp, err := s.client.EC2.DescribeAddresses(context.TODO(), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	resp, err := s.client.EC2.DescribeAddresses(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to describe addresses: %w", err)
+		return nil, fmt.Errorf("failed to describe Elastic IPs: %w\nTip: Ensure you have ec2:DescribeAddresses permission", err)
 	}
 
 	for _, addr := range resp.Addresses {

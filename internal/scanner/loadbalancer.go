@@ -30,8 +30,11 @@ func NewLoadBalancerScanner(client *aws.Client) *LoadBalancerScanner {
 func (s *LoadBalancerScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 	var resources []types.Resource
 
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
 	// Scan ALBs and NLBs
-	albResp, err := s.client.ELBv2.DescribeLoadBalancers(context.TODO(), nil)
+	albResp, err := s.client.ELBv2.DescribeLoadBalancers(ctx, nil)
 	if err == nil {
 		for _, lb := range albResp.LoadBalancers {
 			if lb.LoadBalancerArn == nil || lb.LoadBalancerName == nil {
@@ -67,7 +70,7 @@ func (s *LoadBalancerScanner) Scan(config types.ScanConfig) ([]types.Resource, e
 	}
 
 	// Scan CLBs
-	clbResp, err := s.client.ELB.DescribeLoadBalancers(context.TODO(), nil)
+	clbResp, err := s.client.ELB.DescribeLoadBalancers(ctx, nil)
 	if err == nil {
 		for _, lb := range clbResp.LoadBalancerDescriptions {
 			if lb.LoadBalancerName == nil {
@@ -137,7 +140,10 @@ func (s *LoadBalancerScanner) isIdleLoadBalancer(arn string, idleDays int) bool 
 		Statistics: []cwtypes.Statistic{cwtypes.StatisticSum},
 	}
 
-	resp, err := s.client.CloudWatch.GetMetricStatistics(context.TODO(), input)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	resp, err := s.client.CloudWatch.GetMetricStatistics(ctx, input)
 	if err != nil {
 		return false
 	}
@@ -168,7 +174,10 @@ func (s *LoadBalancerScanner) isIdleClassicLB(name string, idleDays int) bool {
 		Statistics: []cwtypes.Statistic{cwtypes.StatisticSum},
 	}
 
-	resp, err := s.client.CloudWatch.GetMetricStatistics(context.TODO(), input)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	resp, err := s.client.CloudWatch.GetMetricStatistics(ctx, input)
 	if err != nil {
 		return false
 	}
