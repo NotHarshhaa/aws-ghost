@@ -426,6 +426,129 @@ aws-ghost security levels
 
 ---
 
+## Troubleshooting
+
+### Common Issues
+
+#### Authentication Errors
+```
+Error: failed to create AWS client: failed to load credentials
+```
+**Solution**: Ensure your AWS credentials are configured:
+- Check `~/.aws/credentials` file exists and has valid credentials
+- Or set environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+- Or use `--profile` flag to specify a named profile
+- Verify credentials with: `aws sts get-caller-identity`
+
+#### Permission Denied Errors
+```
+Error: AccessDenied: User is not authorized to perform: ec2:DescribeVolumes
+```
+**Solution**: Your IAM user/role needs read-only permissions. Attach the policy shown in the "Required IAM permissions" section above.
+
+#### Timeout Errors
+```
+Error: context deadline exceeded
+```
+**Solution**: 
+- Check your network connectivity to AWS
+- Verify security groups allow outbound HTTPS (443) traffic
+- Try scanning a single region first: `aws-ghost scan --region us-east-1`
+- Increase timeout by setting `AWS_SDK_LOAD_TIMEOUT` environment variable
+
+#### Rate Limiting / Throttling
+```
+Error: RequestLimitExceeded: Rate exceeded
+```
+**Solution**: The tool automatically retries with exponential backoff. If you still hit limits:
+- Scan fewer resource types: `aws-ghost scan --only ebs,eip`
+- Scan one region at a time instead of `--all-regions`
+- Wait a few minutes and try again
+
+#### No Resources Found
+```
+Ghosts Found: 0 resources
+```
+**Possible reasons**:
+- Your account is clean (great!)
+- Wrong region: try `--all-regions` or specify correct region
+- Resources are tagged with protection tags and you used `--skip-protected`
+- `--min-cost` threshold is too high
+- `--idle-days` threshold is too high
+
+### Best Practices
+
+#### Regular Scanning
+Run `aws-ghost` weekly or monthly to catch waste early:
+```bash
+# Add to crontab (every Monday at 9am)
+0 9 * * 1 aws-ghost scan --all-regions --output markdown > /var/log/ghost-report.md
+```
+
+#### Multi-Account Strategy
+For organizations with multiple AWS accounts:
+```bash
+# Scan all accounts using different profiles
+for profile in prod staging dev; do
+  echo "Scanning $profile..."
+  aws-ghost scan --profile $profile --all-regions --output json > "ghost-$profile.json"
+done
+```
+
+#### Cost Optimization Workflow
+1. **Discover**: Run initial scan to identify all ghost resources
+2. **Analyze**: Review resources with team, check if any are needed
+3. **Tag**: Add `keep=true` tag to resources you want to preserve
+4. **Clean**: Use `aws-ghost fix --skip-protected --dry-run` to preview cleanup
+5. **Execute**: Run `aws-ghost fix --skip-protected` to delete confirmed ghosts
+6. **Monitor**: Set up scheduled scans and budget alerts
+
+#### Tag Strategy
+Protect critical resources from accidental cleanup:
+```bash
+# Tag resources you want to keep
+aws ec2 create-tags --resources vol-xxxxx --tags Key=keep,Value=true
+aws ec2 create-tags --resources vol-xxxxx --tags Key=env,Value=prod
+
+# Scan with protection
+aws-ghost scan --skip-protected
+```
+
+#### Integration with CI/CD
+Fail builds if waste exceeds threshold:
+```bash
+#!/bin/bash
+WASTE=$(aws-ghost scan --output json | jq '.summary.total_monthly_cost')
+if (( $(echo "$WASTE > 100" | bc -l) )); then
+  echo "ERROR: Monthly waste ($WASTE) exceeds $100 threshold"
+  exit 1
+fi
+```
+
+#### Security Considerations
+- Use read-only IAM roles with minimal permissions
+- Enable MFA for production account scans
+- Use `--security-level strict` for production environments
+- Review audit logs regularly: `aws-ghost scan --audit-log`
+- Never use root account credentials
+
+#### Performance Tips
+- Scan specific resource types if you know what you're looking for
+- Use `--only` flag to limit scope: `aws-ghost scan --only ebs,eip,nat`
+- Scan regions in parallel using separate processes
+- Cache results and compare trends over time
+- Use `--min-cost 5` to filter out negligible waste
+
+### Getting Help
+
+If you encounter issues not covered here:
+1. Check existing [GitHub Issues](https://github.com/NotHarshhaa/aws-ghost/issues)
+2. Run with verbose output and include in bug report
+3. Verify AWS CLI works: `aws ec2 describe-regions`
+4. Check tool version: `aws-ghost version`
+
+---
+
 ## Required IAM permissions
 
 `aws-ghost` is **read-only**. It will never modify or delete anything.

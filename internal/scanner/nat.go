@@ -31,9 +31,12 @@ func NewNATScanner(client *aws.Client) *NATScanner {
 func (s *NATScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 	var resources []types.Resource
 
-	resp, err := s.client.EC2.DescribeNatGateways(context.TODO(), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	resp, err := s.client.EC2.DescribeNatGateways(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to describe NAT gateways: %w", err)
+		return nil, fmt.Errorf("failed to describe NAT gateways: %w\nTip: Ensure you have ec2:DescribeNatGateways permission", err)
 	}
 
 	for _, nat := range resp.NatGateways {
@@ -100,9 +103,12 @@ func (s *NATScanner) isIdleNATGateway(natID string, idleDays int) bool {
 		Statistics: []cwtypes.Statistic{cwtypes.StatisticSum},
 	}
 
-	resp, err := s.client.CloudWatch.GetMetricStatistics(context.TODO(), input)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	resp, err := s.client.CloudWatch.GetMetricStatistics(ctx, input)
 	if err != nil {
-		// If we can't get metrics, don't flag it
+		// If we can't get metrics, don't flag it as idle (conservative approach)
 		return false
 	}
 

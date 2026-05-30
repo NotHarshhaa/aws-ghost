@@ -29,9 +29,12 @@ func NewEBSScanner(client *aws.Client) *EBSScanner {
 func (s *EBSScanner) Scan(config types.ScanConfig) ([]types.Resource, error) {
 	var resources []types.Resource
 
-	resp, err := s.client.EC2.DescribeVolumes(context.TODO(), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	resp, err := s.client.EC2.DescribeVolumes(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to describe volumes: %w", err)
+		return nil, fmt.Errorf("failed to describe EBS volumes: %w\nTip: Ensure you have ec2:DescribeVolumes permission and the region is correct", err)
 	}
 
 	for _, vol := range resp.Volumes {

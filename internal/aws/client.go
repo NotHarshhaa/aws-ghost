@@ -3,8 +3,10 @@ package aws
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
@@ -65,13 +67,22 @@ func NewClient(profile, region string) (*Client, error) {
 
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
+		config.WithRetryer(func() aws.Retryer {
+			return retry.NewStandard(func(o *retry.StandardOptions) {
+				o.MaxAttempts = 3
+				o.MaxBackoff = 20 * time.Second
+			})
+		}),
 	}
 
 	if profile != "" {
 		opts = append(opts, config.WithSharedConfigProfile(profile))
 	}
 
-	cfg, err = config.LoadDefaultConfig(context.TODO(), opts...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cfg, err = config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}

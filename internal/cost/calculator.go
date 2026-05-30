@@ -1,18 +1,47 @@
 package cost
 
-import "time"
+import (
+	"fmt"
+	"sync"
+	"time"
+)
 
 // Calculator handles cost estimations for AWS resources
-type Calculator struct{}
+type Calculator struct {
+	cache      map[string]float64
+	cacheMutex sync.RWMutex
+}
 
 // NewCalculator creates a new cost calculator
 func NewCalculator() *Calculator {
-	return &Calculator{}
+	return &Calculator{
+		cache: make(map[string]float64),
+	}
+}
+
+// getCached retrieves a cached cost calculation
+func (c *Calculator) getCached(key string) (float64, bool) {
+	c.cacheMutex.RLock()
+	defer c.cacheMutex.RUnlock()
+	val, ok := c.cache[key]
+	return val, ok
+}
+
+// setCached stores a cost calculation in cache
+func (c *Calculator) setCached(key string, value float64) {
+	c.cacheMutex.Lock()
+	defer c.cacheMutex.Unlock()
+	c.cache[key] = value
 }
 
 // EBSVolumeCost calculates monthly cost for an EBS volume
 // Prices in USD per GB/month (updated 2024)
 func (c *Calculator) EBSVolumeCost(sizeGB int, volumeType string) float64 {
+	cacheKey := fmt.Sprintf("ebs:%s:%d", volumeType, sizeGB)
+	if cached, ok := c.getCached(cacheKey); ok {
+		return cached
+	}
+
 	prices := map[string]float64{
 		"gp2":      0.10,
 		"gp3":      0.08, // $0.08/GB-month + baseline $0.00022/GB-month provisioned IOPS
@@ -28,7 +57,9 @@ func (c *Calculator) EBSVolumeCost(sizeGB int, volumeType string) float64 {
 		price = 0.08 // default to gp3 (newer standard)
 	}
 
-	return float64(sizeGB) * price
+	cost := float64(sizeGB) * price
+	c.setCached(cacheKey, cost)
+	return cost
 }
 
 // ElasticIPCost calculates monthly cost for an unattached Elastic IP
@@ -77,6 +108,11 @@ func (c *Calculator) ECRImageCost(sizeGB int) float64 {
 // EC2InstanceCost estimates monthly cost for an EC2 instance
 // This is a rough estimate based on instance type
 func (c *Calculator) EC2InstanceCost(instanceType string) float64 {
+	cacheKey := fmt.Sprintf("ec2:%s", instanceType)
+	if cached, ok := c.getCached(cacheKey); ok {
+		return cached
+	}
+
 	prices := map[string]float64{
 		"t2.micro":   8.47,
 		"t2.small":   16.94,
@@ -100,6 +136,7 @@ func (c *Calculator) EC2InstanceCost(instanceType string) float64 {
 		price = 30.00 // conservative default
 	}
 
+	c.setCached(cacheKey, price)
 	return price
 }
 
